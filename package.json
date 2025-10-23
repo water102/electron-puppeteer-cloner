@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "chalk": "^5.6.2",
+    "dexie": "^4.0.8",
     "express": "^5.1.0",
     "fs-extra": "^11.2.0",
     "mime": "^4.1.0",

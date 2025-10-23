@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import mime from 'mime';
+// Note: Database operations removed - now handled in renderer process
 
 /**
  * Static file analyzer for extracting and downloading static resources
@@ -243,6 +244,8 @@ class StaticAnalyzer {
 
     return downloaded;
   }
+
+  // Note: processUrlsWithClassification method removed - now handled in renderer process
 
   /**
    * Get static files from HTML content

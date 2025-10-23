@@ -2,6 +2,12 @@
  * Main renderer process logic for the Electron app
  */
 
+// Import log viewer and network monitor
+import { logViewer } from '../utils/log-viewer.js';
+import { networkMonitor } from '../utils/network-monitor.js';
+import { databaseUtils } from './database.js';
+import { urlDatabaseManager, URL_TYPES } from '../utils/url-classifier.js';
+
 // DOM element references
 const elements = {
   srcView: document.getElementById('srcView'),
@@ -25,6 +31,8 @@ const elements = {
   clearHtmlBtn: document.getElementById('clearHtmlBtn'),
   clearImagesBtn: document.getElementById('clearImagesBtn'),
   clearSettingsBtn: document.getElementById('clearSettingsBtn'),
+  viewLogsBtn: document.getElementById('viewLogsBtn'),
+  openOutputBtn: document.getElementById('openOutputBtn'),
   logArea: document.getElementById('logArea'),
   leftPanel: document.getElementById('leftPanel'),
   rightPanel: document.getElementById('rightPanel'),
@@ -37,18 +45,20 @@ const elements = {
   progressContent: document.getElementById('progressContent'),
   overallProgressFill: document.getElementById('overallProgressFill'),
   currentFileText: document.getElementById('currentFileText'),
-  currentFileProgressFill: document.getElementById('currentFileProgressFill')
+  currentFileProgressFill: document.getElementById('currentFileProgressFill'),
+  totalUrls: document.getElementById('totalUrls'),
+  totalFiles: document.getElementById('totalFiles'),
+  currentHostname: document.getElementById('currentHostname'),
+  copyLogsBtn: document.getElementById('copyLogsBtn')
 };
 
 // Application state
 let serverRunning = false;
-let watchMode = false;
-let lastWatchedUrl = '';
-let cloneQueue = [];
 let progressHideTimeout = null;
-let currentDomain = '';
 let totalFiles = 0; // Store total file count
 let progressCollapsed = false; // Track progress container collapse state
+let totalUrls = 0; // Store total URL count
+let currentHostname = 'None'; // Current hostname being monitored
 
 // Local storage keys
 const STORAGE_KEYS = {
@@ -73,13 +83,40 @@ function debounce(func, wait) {
 /**
  * Initialize the application
  */
-function initializeApp() {
+async function initializeApp() {
   setupEventListeners();
   setupResizePanels();
   setupCloneProgressListener();
   setupResizeObserver();
-  restoreLastSettings();
+  await restoreLastSettings();
   setupUrlSync();
+  
+  // Wait for Dexie to be available
+  if (typeof window.Dexie === 'undefined') {
+    appendLog('⏳ Waiting for Dexie to load...');
+    await new Promise(resolve => {
+      const checkDexie = () => {
+        if (typeof window.Dexie !== 'undefined') {
+          resolve();
+        } else {
+          setTimeout(checkDexie, 100);
+        }
+      };
+      checkDexie();
+    });
+  }
+  
+  // Initialize database
+  try {
+    await databaseUtils.initializeDatabase();
+    appendLog('✅ Database initialized successfully');
+  } catch (error) {
+    console.error('Database initialization failed:', error);
+    appendLog('❌ Database initialization failed: ' + error.message);
+  }
+  
+  // Start continuous network monitoring
+  startContinuousMonitoring();
 }
 
 /**
@@ -91,6 +128,80 @@ function setupUrlSync() {
     syncUrlFromWebview();
   }, 2000);
 }
+
+/**
+ * Start continuous network monitoring
+ */
+async function startContinuousMonitoring() {
+  try {
+    // Get current URL and start monitoring
+    const currentUrl = elements.srcView.getURL?.() || elements.srcUrl.value.trim();
+    if (currentUrl && !currentUrl.startsWith('about:')) {
+      const hostname = extractDomain(currentUrl);
+      if (hostname) {
+        await networkMonitor.startMonitoring(hostname);
+        currentHostname = hostname;
+        await updateStats();
+        appendLog(`🔍 Continuous monitoring started for: ${hostname}`);
+      }
+    }
+    
+    // Start monitoring for any URL changes
+    appendLog(`🔍 Network monitoring is always active - capturing all requests and files`);
+    
+    // Auto-sync stats periodically to ensure accuracy
+    setInterval(async () => {
+      if (currentHostname && currentHostname !== 'None') {
+        await updateStats();
+      }
+    }, 5000); // Update every 5 seconds
+  } catch (error) {
+    console.error('Error starting continuous monitoring:', error);
+  }
+}
+
+/**
+ * Update stats display from database
+ */
+async function updateStats() {
+  try {
+    // Load stats from database for current hostname
+    if (currentHostname && currentHostname !== 'None') {
+      // Use the existing databaseUtils from renderer/database.js
+      const stats = await databaseUtils.getCurrentPageStats(currentHostname);
+      elements.totalUrls.textContent = `Total URLs: ${stats.requestCount}`;
+      elements.totalFiles.textContent = `Total Files: ${stats.fileCount}`;
+    } else {
+      // Fallback to local variables if no hostname
+      elements.totalUrls.textContent = `Total URLs: ${totalUrls}`;
+      elements.totalFiles.textContent = `Total Files: ${totalFiles}`;
+    }
+    elements.currentHostname.textContent = `Hostname: ${currentHostname}`;
+  } catch (error) {
+    console.error('Error updating stats from database:', error);
+    // Fallback to local variables on error
+    elements.totalUrls.textContent = `Total URLs: ${totalUrls}`;
+    elements.totalFiles.textContent = `Total Files: ${totalFiles}`;
+    elements.currentHostname.textContent = `Hostname: ${currentHostname}`;
+  }
+}
+
+/**
+ * Update network stats when new data is captured
+ */
+window.updateNetworkStats = async function(type) {
+  if (type === 'request') {
+    totalUrls++;
+  } else if (type === 'file') {
+    totalFiles++;
+  }
+  await updateStats();
+  
+  // Auto-sync stats from database to ensure accuracy
+  setTimeout(async () => {
+    await updateStats();
+  }, 500);
+};
 
 /**
  * Save URL to localStorage
@@ -105,7 +216,7 @@ function saveLastUrl(url) {
 /**
  * Restore last settings from localStorage
  */
-function restoreLastSettings() {
+async function restoreLastSettings() {
   // Restore last URL
   const lastUrl = localStorage.getItem(STORAGE_KEYS.LAST_URL);
   if (lastUrl) {
@@ -113,7 +224,7 @@ function restoreLastSettings() {
     appendLog(`🔄 Restored last URL: ${lastUrl}`);
     
     // Initialize domain tracking for restored URL
-    checkDomainChange(lastUrl);
+    await checkDomainChange(lastUrl);
   }
   
   // Restore last output directory
@@ -145,9 +256,19 @@ function setupEventListeners() {
     }
   });
   
+  // Auto-select all text when clicking on URL input
+  elements.srcUrl.addEventListener('click', () => {
+    elements.srcUrl.select();
+  });
+  
   // Add click event to sync URL from webview
   elements.srcUrl.addEventListener('click', () => {
     syncUrlFromWebview();
+  });
+  
+  // Auto-select all text when clicking on output path input
+  elements.outPath.addEventListener('click', () => {
+    elements.outPath.select();
   });
   
   // Save port when changed
@@ -158,9 +279,9 @@ function setupEventListeners() {
   
   // Watch for URL changes in srcView for auto-clone
   elements.srcView.addEventListener('did-navigate', handleUrlChange);
-  elements.srcView.addEventListener('did-navigate-in-page', handleUrlChange);
-  elements.srcView.addEventListener('did-finish-load', handleUrlChange);
-  elements.srcView.addEventListener('did-frame-navigate', handleUrlChange);
+  // elements.srcView.addEventListener('did-navigate-in-page', handleUrlChange);
+  // elements.srcView.addEventListener('did-finish-load', handleUrlChange);
+  // elements.srcView.addEventListener('did-frame-navigate', handleUrlChange);
   
   // Destination URL navigation
   elements.dstGo.addEventListener('click', handleDestinationNavigation);
@@ -209,6 +330,15 @@ function setupEventListeners() {
   
   // Clear saved settings
   elements.clearSettingsBtn.addEventListener('click', handleClearSettings);
+  
+  // View logs button
+  elements.viewLogsBtn.addEventListener('click', handleViewLogs);
+  
+  // Open output folder button
+  elements.openOutputBtn.addEventListener('click', handleOpenOutputFolder);
+  
+  // Copy logs button
+  elements.copyLogsBtn.addEventListener('click', handleCopyLogs);
 }
 
 /**
@@ -329,13 +459,30 @@ function setupResizeObserver() {
  * Setup clone progress listener
  */
 function setupCloneProgressListener() {
-  window.electronAPI.onCloneProgress((progress) => {
+  window.electronAPI.onCloneProgress(async (progress) => {
     if (progress.savedResource) {
       const fileName = progress.path ? progress.path.split('/').pop() : 'Unknown file';
       if (progress.status === 'skipped') {
         appendLog(`⏭️ Skipped: ${fileName} (${progress.reason || 'Already exists'})`);
       } else if (progress.status === 'downloaded') {
         appendLog(`📥 Downloaded: ${fileName}`);
+        
+        // Save file data to database
+        try {
+          const fileData = {
+            url: progress.savedResource,
+            filename: fileName,
+            size: 0, // Size not available in progress
+            timestamp: Date.now(),
+            hostname: currentHostname
+          };
+          await window.electronAPI.saveFileToDatabase(fileData);
+          
+          // Update stats after saving to database
+          await updateStats();
+        } catch (error) {
+          console.error('Error saving file to database:', error);
+        }
       } else {
         appendLog(`📁 Saved: ${fileName}`);
       }
@@ -430,31 +577,29 @@ function extractDomain(url) {
 }
 
 /**
- * Reset all tracking variables for a new domain
+ * Reset all tracking variables for a new domain (but keep database data)
  */
 function resetTrackingForNewDomain() {
-  lastWatchedUrl = '';
-  cloneQueue = [];
-  
   // Clear any pending progress timeouts
   if (progressHideTimeout) {
     clearTimeout(progressHideTimeout);
     progressHideTimeout = null;
   }
   
-  appendLog(`🔄 Reset all tracking variables for new domain`);
+  appendLog(`🔄 Reset tracking variables for new domain (database data preserved)`);
 }
 
 /**
  * Check if domain has changed and reset tracking if needed
  * @param {string} newUrl - New URL to check
  */
-function checkDomainChange(newUrl) {
+async function checkDomainChange(newUrl) {
   const newDomain = extractDomain(newUrl);
   
-  if (newDomain && newDomain !== currentDomain) {
-    const oldDomain = currentDomain;
-    currentDomain = newDomain;
+  if (newDomain && newDomain !== currentHostname) {
+    const oldDomain = currentHostname;
+    currentHostname = newDomain;
+    await updateStats();
     
     // Reset all tracking variables
     resetTrackingForNewDomain();
@@ -462,18 +607,15 @@ function checkDomainChange(newUrl) {
     appendLog(`🌐 Domain changed: ${oldDomain || 'none'} → ${newDomain}`);
     appendLog(`🔄 Reset tracking for new domain: ${newDomain}`);
     
-    // If watch mode is active, restart monitoring for the new domain
-    if (watchMode) {
-      appendLog(`👁️ Restarting watch mode for new domain: ${newDomain}`);
-      // The watch mode will continue with the new domain
-    }
+    // Continuous monitoring is always active
+    appendLog(`👁️ Continuous monitoring active for new domain: ${newDomain}`);
   }
 }
 
 /**
  * Sync URL from webview to input field
  */
-function syncUrlFromWebview() {
+async function syncUrlFromWebview() {
   try {
     const currentUrl = elements.srcView.getURL();
     if (currentUrl && currentUrl !== 'about:blank' && !currentUrl.startsWith('about:')) {
@@ -482,12 +624,54 @@ function syncUrlFromWebview() {
         elements.srcUrl.value = currentUrl;
         appendLog(`🔄 Synced URL from webview: ${currentUrl}`);
         
+        // Check for domain change and update hostname
+        const hostname = extractDomain(currentUrl);
+        if (hostname && hostname !== currentHostname) {
+          currentHostname = hostname;
+          await updateStats();
+        }
+        
         // Check for domain change
-        checkDomainChange(currentUrl);
+        await checkDomainChange(currentUrl);
       }
     }
   } catch (error) {
     console.warn('Could not sync URL from webview:', error);
+  }
+}
+
+/**
+ * Process static files with database operations
+ * @param {Array} staticFiles - Array of static file objects
+ * @param {string} hostname - Website hostname
+ */
+async function processStaticFilesWithDatabase(staticFiles, hostname) {
+  console.log(`🔍 Processing ${staticFiles.length} static files with database for ${hostname}`);
+  
+  for (const file of staticFiles) {
+    try {
+      const result = await urlDatabaseManager.processUrl(
+        file.url,
+        'GET',
+        {
+          size: 0,
+          timestamp: Date.now(),
+          source: 'static_analyzer',
+          fileType: file.type
+        },
+        hostname
+      );
+      
+      if (result.success) {
+        console.log(`✅ Processed ${file.type} file: ${file.url} (${result.classification.type})`);
+      } else if (result.existing) {
+        console.log(`⏭️ File already exists: ${file.url}`);
+      } else {
+        console.warn(`⚠️ Failed to process file: ${file.url} - ${result.error || result.reason}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error processing file ${file.url}:`, error);
+    }
   }
 }
 
@@ -503,24 +687,19 @@ async function handleSourceNavigation() {
   }
   
   // Check for domain change when manually navigating
-  checkDomainChange(url);
+  await checkDomainChange(url);
   
-  // If watch mode is active and URL changed, reset button state but keep watch mode
-  if (watchMode && url !== lastWatchedUrl) {
-    // Reset button to normal state but preserve file count if available
-    if (totalFiles > 0) {
-      elements.cloneBtn.textContent = `👁️ Watch & Clone (${totalFiles} files)`;
-    } else {
-      elements.cloneBtn.textContent = '👁️ Watch & Clone';
-    }
-    elements.cloneBtn.style.background = '';
-    
-    // Reset last watched URL but keep watch mode active
-    lastWatchedUrl = '';
-    
-    appendLog(`🔄 Manual navigation to: ${url}`);
-    appendLog(`👁️ Watch mode remains active - ready to clone new URL`);
+  // Start network monitoring for the new hostname
+  const hostname = extractDomain(url);
+  if (hostname) {
+    await networkMonitor.startMonitoring(hostname);
+    currentHostname = hostname;
+    await updateStats();
+    appendLog(`🔍 Network monitoring started for: ${hostname}`);
   }
+  
+  appendLog(`🔄 Manual navigation to: ${url}`);
+  appendLog(`🔍 Continuous monitoring active`);
   
   elements.srcView.src = url;
   
@@ -531,7 +710,14 @@ async function handleSourceNavigation() {
   elements.srcView.addEventListener('dom-ready', async () => {
     try {
       const html = await elements.srcView.executeJavaScript('document.documentElement.outerHTML');
-      const result = await window.electronAPI.analyzeStaticFiles({ html, baseUrl: url });
+      const hostname = new URL(url).hostname;
+      
+      // Call main process to analyze static files
+      const result = await window.electronAPI.analyzeStaticFiles({
+        html,
+        baseUrl: url,
+        hostname: hostname
+      });
       
       if (result.staticFiles && result.staticFiles.length > 0) {
         totalFiles = result.staticFiles.length;
@@ -541,12 +727,15 @@ async function handleSourceNavigation() {
         });
         
         // Update button text to show total files
-        elements.cloneBtn.textContent = `👁️ Watch & Clone (${totalFiles} files)`;
+        elements.cloneBtn.textContent = `📋 Clone (${totalFiles} files)`;
+        
+        // Process URLs with database operations in renderer
+        await processStaticFilesWithDatabase(result.staticFiles, hostname);
       } else {
         totalFiles = 0;
         appendLog('ℹ️ No local static files found (all external/CDN)');
         // Reset button text when no files found
-        elements.cloneBtn.textContent = '👁️ Watch & Clone';
+        elements.cloneBtn.textContent = '📋 Clone';
       }
       
       // Show skipped files info
@@ -568,54 +757,46 @@ async function handleSourceNavigation() {
 }
 
 /**
- * Handle URL changes in srcView for auto-clone
+ * Handle URL changes in srcView for auto-monitoring
  */
 async function handleUrlChange(event) {
   const newUrl = event.url;
   if (!newUrl || newUrl.startsWith('about:')) return;
   
-  // Always update the URL input field regardless of watch mode
+  // Always update the URL input field
   elements.srcUrl.value = newUrl;
   
-  // Check for domain change and reset tracking if needed
-  checkDomainChange(newUrl);
-  
-  // If watch mode is active and URL changed, reset button state but keep watch mode
-  if (watchMode && newUrl !== lastWatchedUrl) {
-    // Reset button to normal state but preserve file count if available
-    if (totalFiles > 0) {
-      elements.cloneBtn.textContent = `👁️ Watch & Clone (${totalFiles} files)`;
-    } else {
-      elements.cloneBtn.textContent = '👁️ Watch & Clone';
+  // Extract hostname and start monitoring (no reset, just add new hostname)
+  const newHostname = extractDomain(newUrl);
+  if (newHostname) {
+    // Create website entry immediately when URL changes
+    try {
+      await databaseUtils.getOrCreateWebsiteId(newHostname);
+      appendLog(`📝 Website entry created/verified for: ${newHostname}`);
+    } catch (error) {
+      console.error('Error creating website entry:', error);
     }
-    elements.cloneBtn.style.background = '';
     
-    // Reset last watched URL but keep watch mode active
-    lastWatchedUrl = '';
+    // Start network monitoring for the hostname (will not reset existing data)
+    await networkMonitor.startMonitoring(newHostname);
+    currentHostname = newHostname;
+    await updateStats();
+    appendLog(`🔍 Network monitoring active for: ${newHostname}`);
     
-    appendLog(`🔄 URL changed: ${newUrl}`);
-    appendLog(`👁️ Watch mode remains active - ready to clone new URL`);
-    
-    // Save new URL to localStorage
-    saveLastUrl(newUrl);
-    
-    // Don't auto-clone - user needs to manually click Watch & Clone again
-    return;
+    // Auto-sync stats from database after a short delay to ensure data is captured
+    setTimeout(async () => {
+      await updateStats();
+      appendLog(`📊 Auto-synced stats: ${elements.totalUrls.textContent}, ${elements.totalFiles.textContent}`);
+    }, 2000);
   }
   
-  // Only proceed with auto-clone logic if watch mode is enabled and URL hasn't changed
-  if (!watchMode) return;
-  
-  if (newUrl === lastWatchedUrl) return;
-  
-  lastWatchedUrl = newUrl;
-  appendLog(`🔄 URL changed: ${newUrl}`);
+  // Update domain tracking
+  await checkDomainChange(newUrl);
   
   // Save new URL to localStorage
   saveLastUrl(newUrl);
   
-  // Auto-clone the new page
-  await autoClonePage(newUrl);
+  appendLog(`🔄 URL changed: ${newUrl}`);
 }
 
 /**
@@ -671,6 +852,15 @@ async function autoClonePage(url) {
     });
     
     appendLog(`✅ Auto-clone completed: ${result.savedRelativePath}`);
+    
+    // Update stats after clone completion
+    await updateStats();
+    
+    // Force refresh stats from database to ensure accuracy
+    setTimeout(async () => {
+      await updateStats();
+      appendLog(`📊 Stats updated: ${elements.totalUrls.textContent}, ${elements.totalFiles.textContent}`);
+    }, 1000);
     
     // Auto-navigate to cloned content if server is running
     if (serverRunning) {
@@ -951,7 +1141,7 @@ async function getCapturedNetworkData() {
 }
 
 /**
- * Handle Watch & Clone operation
+ * Handle Clone operation
  */
 async function handleClone() {
   const currentURL = elements.srcView.getURL?.() || elements.srcUrl.value.trim();
@@ -977,43 +1167,26 @@ async function handleClone() {
     return;
   }
   
-  // Toggle watch mode
-  if (!watchMode) {
-    // Start watching
-    watchMode = true;
-    lastWatchedUrl = currentURL;
-    elements.cloneBtn.textContent = 'Stop Watching';
-    elements.cloneBtn.style.background = '#ef4444';
-    appendLog('🔍 Watch mode ON - Auto-cloning enabled');
-    
-    // Capture all fetch/XHR requests and existing resources
-    await captureNetworkRequests(currentURL);
-    
-    // Check if server is running for better UX
-    if (!serverRunning) {
-      const startServer = confirm('⚠️ Static server is not running.\n\nDo you want to start the server now to preview the cloned content?\n\nClick "OK" to start server, or "Cancel" to continue without server.');
-      if (startServer) {
-        await handleToggleServer();
-      }
-    }
-    
-    // Clone current page immediately
-    await autoClonePage(currentURL);
-    
-  } else {
-    // Stop watching
-    watchMode = false;
-    lastWatchedUrl = '';
-    
-    // Preserve file count in button text
-    if (totalFiles > 0) {
-      elements.cloneBtn.textContent = `👁️ Watch & Clone (${totalFiles} files)`;
-    } else {
-      elements.cloneBtn.textContent = '👁️ Watch & Clone';
-    }
-    elements.cloneBtn.style.background = '';
-    appendLog('⏹️ Watch mode OFF - Auto-cloning disabled');
+  // Start network monitoring for the current hostname (always active)
+  const hostname = extractDomain(currentURL);
+  if (hostname) {
+    await networkMonitor.startMonitoring(hostname);
+    appendLog(`🔍 Network monitoring active for: ${hostname}`);
   }
+  
+  // Capture all fetch/XHR requests and existing resources
+  await captureNetworkRequests(currentURL);
+  
+  // Check if server is running for better UX
+  if (!serverRunning) {
+    const startServer = confirm('⚠️ Static server is not running.\n\nDo you want to start the server now to preview the cloned content?\n\nClick "OK" to start server, or "Cancel" to continue without server.');
+    if (startServer) {
+      await handleToggleServer();
+    }
+  }
+  
+  // Clone current page
+  await autoClonePage(currentURL);
 }
 
 /**
@@ -1212,16 +1385,128 @@ function handleClearSettings() {
 }
 
 /**
+ * Handle view logs button click
+ */
+async function handleViewLogs() {
+  try {
+    // Get current hostname
+    const currentUrl = elements.srcView.getURL?.() || elements.srcUrl.value.trim();
+    let hostname = 'unknown';
+    
+    if (currentUrl && !currentUrl.startsWith('about:')) {
+      try {
+        hostname = new URL(currentUrl).hostname;
+      } catch (error) {
+        console.warn('Could not parse URL for hostname:', error);
+      }
+    }
+    
+    // Start network monitoring if not already monitoring this hostname
+    if (hostname !== 'unknown') {
+      await networkMonitor.startMonitoring(hostname);
+    }
+    
+    // Show log viewer
+    await logViewer.show();
+    
+    appendLog(`📊 Opened log viewer for: ${hostname}`);
+  } catch (error) {
+    console.error('Error opening log viewer:', error);
+    appendLog('❌ Error opening log viewer: ' + error.message);
+  }
+}
+
+/**
+ * Handle open output folder button click
+ */
+async function handleOpenOutputFolder() {
+  const outputDir = elements.outPath.value.trim();
+  console.log(`[Renderer] Attempting to open folder: "${outputDir}"`);
+  
+  if (!outputDir) {
+    appendLog('❌ No output folder selected');
+    showAlert('❌ Please choose an output folder first!\n\nClick the "Choose" button to select a folder.');
+    return;
+  }
+  
+  try {
+    console.log(`[Renderer] Calling electronAPI.openOutputFolder with: "${outputDir}"`);
+    const result = await window.electronAPI.openOutputFolder(outputDir);
+    console.log(`[Renderer] Result from main process:`, result);
+    
+    if (result.success) {
+      appendLog(`📂 Opened output folder: ${outputDir}`);
+    } else {
+      throw new Error(result.error || 'Unknown error');
+    }
+  } catch (error) {
+    console.error('Error opening output folder:', error);
+    appendLog('❌ Error opening output folder: ' + error.message);
+    showAlert('❌ Failed to open output folder!\n\nError: ' + error.message);
+  }
+}
+
+/**
+ * Handle copy logs button click
+ */
+async function handleCopyLogs() {
+  try {
+    // Get all log content from logArea
+    const logContent = elements.logArea.textContent;
+    
+    if (!logContent || logContent.trim() === '') {
+      appendLog('📋 No logs to copy');
+      return;
+    }
+    
+    // Copy to clipboard
+    await navigator.clipboard.writeText(logContent);
+    
+    // Show success feedback
+    const originalText = elements.copyLogsBtn.textContent;
+    elements.copyLogsBtn.textContent = '✅';
+    elements.copyLogsBtn.style.background = 'rgba(16, 185, 129, 0.2)';
+    elements.copyLogsBtn.style.color = '#10b981';
+    
+    // Reset after 2 seconds
+    setTimeout(() => {
+      elements.copyLogsBtn.textContent = originalText;
+      elements.copyLogsBtn.style.background = 'rgba(102, 126, 234, 0.1)';
+      elements.copyLogsBtn.style.color = '#667eea';
+    }, 2000);
+    
+    appendLog('📋 All logs copied to clipboard');
+  } catch (error) {
+    console.error('Error copying logs:', error);
+    appendLog('❌ Error copying logs: ' + error.message);
+    
+    // Show error feedback
+    const originalText = elements.copyLogsBtn.textContent;
+    elements.copyLogsBtn.textContent = '❌';
+    elements.copyLogsBtn.style.background = 'rgba(239, 68, 68, 0.2)';
+    elements.copyLogsBtn.style.color = '#ef4444';
+    
+    // Reset after 2 seconds
+    setTimeout(() => {
+      elements.copyLogsBtn.textContent = originalText;
+      elements.copyLogsBtn.style.background = 'rgba(102, 126, 234, 0.1)';
+      elements.copyLogsBtn.style.color = '#667eea';
+    }, 2000);
+  }
+}
+
+/**
  * Show alert with custom title
  * @param {string} message - Alert message
  * @param {string} title - Alert title (default: "Alert")
  */
 function showAlert(message, title = 'Alert') {
+  const originalTitle = document.title;
   // Set window title before showing alert
   document.title = title;
-  showAlert(message);
+  alert(message);
   // Reset window title after alert
-  document.title = 'Web Cloner';
+  document.title = originalTitle;
 }
 
 /**

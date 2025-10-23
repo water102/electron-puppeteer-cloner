@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { fork } from 'child_process';
@@ -7,6 +7,7 @@ import staticServer from '../utils/static-server.js';
 import Logger from '../utils/logger.js';
 import config from '../utils/config.js';
 import StaticAnalyzer from '../utils/static-analyzer.js';
+import databaseUtils from '../utils/database.js';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -32,10 +33,10 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, '../renderer/preload.js'),
       webviewTag: true,
-      allowRunningInsecureContent: true,
+      allowRunningInsecureContent: false,
       experimentalFeatures: false,
       enableRemoteModule: false,
-      webSecurity: false
+      webSecurity: true
     },
     icon: path.join(__dirname, '../assets/icon.png'), // Add icon if available
     titleBarStyle: 'default',
@@ -43,6 +44,9 @@ function createWindow() {
   });
   
   mainWindow.loadFile(path.join(__dirname, '../assets/index.html'));
+  
+  // Note: Database will be initialized in renderer process
+  logger.info('Database will be initialized in renderer process');
   
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
@@ -151,7 +155,7 @@ ipcMain.handle('toggle-server', async (_event, { dir, port }) => {
 /**
  * Analyze static files from HTML content
  */
-ipcMain.handle('analyze-static-files', async (_event, { html, baseUrl }) => {
+ipcMain.handle('analyze-static-files', async (_event, { html, baseUrl, hostname }) => {
   try {
     logger.info(`Analyzing static files from: ${baseUrl}`);
     const analyzer = new StaticAnalyzer();
@@ -302,6 +306,151 @@ ipcMain.handle('clear-specific-files', async (_event, folderPath, fileExtensions
   } catch (error) {
     logger.error('Clear specific files error: ' + error.message);
     throw error;
+  }
+});
+
+/**
+ * Get log data for current hostname
+ */
+ipcMain.handle('get-log-data', async (_event, hostname) => {
+  try {
+    const stats = await databaseUtils.getCurrentPageStats(hostname);
+    return stats;
+  } catch (error) {
+    logger.error('Error getting log data: ' + error.message);
+    return {
+      hostname: hostname,
+      websiteCount: 0,
+      requestCount: 0,
+      fileCount: 0,
+      totalCount: 0,
+      websites: [],
+      requests: [],
+      files: []
+    };
+  }
+});
+
+/**
+ * Get all websites with their data
+ */
+ipcMain.handle('get-all-websites', async () => {
+  try {
+    const websites = await databaseUtils.getAllWebsitesWithData();
+    return websites;
+  } catch (error) {
+    logger.error('Error getting all websites: ' + error.message);
+    return [];
+  }
+});
+
+/**
+ * Export log data
+ */
+ipcMain.handle('export-log-data', async (_event, hostname) => {
+  try {
+    const data = await databaseUtils.exportData(hostname);
+    return data;
+  } catch (error) {
+    logger.error('Error exporting log data: ' + error.message);
+    return null;
+  }
+});
+
+/**
+ * Clear all log data
+ */
+ipcMain.handle('clear-log-data', async () => {
+  try {
+    await databaseUtils.clearAllData();
+    logger.success('All log data cleared');
+    return { success: true };
+  } catch (error) {
+    logger.error('Error clearing log data: ' + error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Open output folder in file explorer
+ */
+ipcMain.handle('open-output-folder', async (_event, folderPath) => {
+  try {
+    logger.info(`Attempting to open folder: ${folderPath}`);
+    
+    if (!folderPath) {
+      throw new Error('No folder path provided');
+    }
+    
+    // Check if path exists
+    if (!fs.existsSync(folderPath)) {
+      logger.error(`Folder does not exist: ${folderPath}`);
+      throw new Error(`Folder does not exist: ${folderPath}`);
+    }
+    
+    // Check if it's a directory
+    const stats = fs.statSync(folderPath);
+    if (!stats.isDirectory()) {
+      logger.error(`Path is not a directory: ${folderPath}`);
+      throw new Error(`Path is not a directory: ${folderPath}`);
+    }
+    
+    logger.info(`Opening folder with shell.openPath: ${folderPath}`);
+    await shell.openPath(folderPath);
+    logger.success(`Successfully opened output folder: ${folderPath}`);
+    return { success: true };
+  } catch (error) {
+    logger.error('Error opening output folder: ' + error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Save request to database
+ */
+ipcMain.handle('save-request-to-database', async (_event, requestData) => {
+  try {
+    await databaseUtils.saveRequest(requestData, requestData.hostname);
+    logger.success(`Saved request: ${requestData.method} ${requestData.url}`);
+    return { success: true };
+  } catch (error) {
+    logger.error('Error saving request to database: ' + error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Save file to database
+ */
+ipcMain.handle('save-file-to-database', async (_event, fileData) => {
+  try {
+    await databaseUtils.saveFile(fileData, fileData.hostname);
+    logger.success(`Saved file: ${fileData.url}`);
+    return { success: true };
+  } catch (error) {
+    logger.error('Error saving file to database: ' + error.message);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Check database status
+ */
+ipcMain.handle('check-database-status', async () => {
+  try {
+    const stats = await databaseUtils.getCurrentPageStats('test');
+    return { 
+      success: true, 
+      status: 'connected',
+      message: 'Database is working properly'
+    };
+  } catch (error) {
+    logger.error('Database status check failed: ' + error.message);
+    return { 
+      success: false, 
+      status: 'error',
+      error: error.message 
+    };
   }
 });
 

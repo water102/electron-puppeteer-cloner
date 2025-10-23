@@ -28,13 +28,17 @@
     <div id="bottom">
     <div class="controls">
       <label>Output folder:</label>
-      <input id="outPath" readonly />
+      <div style="display: flex;">
+        <input id="outPath" readonly />
+        <button id="openOutputBtn" title="Open output folder">📂</button>
+      </div>
       <button id="chooseOut">📁 Choose</button>
       <label>Port:</label>
       <input id="port" type="number" value="8080" />
       <button id="toggleServer">⚡ Start Server</button>
       <button id="testServer">🧪 Test Server</button>
-      <button id="cloneBtn">👁️ Watch & Clone</button>
+      <button id="cloneBtn">📋 Clone</button>
+      <button id="viewLogsBtn">📊 View Logs</button>
       <div class="dropdown">
         <button id="clearBtn" class="dropdown-main">🗑️ Clear All</button>
         <button id="clearDropdown" class="dropdown-arrow">▼</button>
@@ -67,10 +71,18 @@
         </div>
       </div>
     </div>
-    <div id="logArea"></div>
+    <div id="logArea">
+      <button id="copyLogsBtn" title="Copy all logs to clipboard">📋</button>
+    </div>
+    <div id="statsArea">
+      <span id="totalUrls">Total URLs: 0</span>
+      <span id="totalFiles">Total Files: 0</span>
+      <span id="currentHostname">Hostname: None</span>
+    </div>
     </div>
   </div>
   <script src="split.min.js"></script>
+  <script src="dexie.js"></script>
   <script type="module" src="../renderer/renderer.js"></script>
 </body>
 </html>
