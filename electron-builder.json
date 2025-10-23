@@ -1,0 +1,28 @@
+{
+  "appId": "com.example.electron-puppeteer-cloner",
+  "productName": "Web Cloner",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "src/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.developer-tools",
+    "target": "dmg"
+  },
+  "win": {
+    "target": "nsis"
+  },
+  "linux": {
+    "target": "AppImage"
+  },
+  "extraResources": [
+    {
+      "from": "src/assets",
+      "to": "assets"
+    }
+  ]
+}

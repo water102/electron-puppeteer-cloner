@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: https: http:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+  <title>Electron Web Cloner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="top">
+      <div id="leftPanel" class="panel">
+        <div class="addressbar">
+          <input id="srcUrl" placeholder="Source URL" />
+          <button id="srcGo">🚀 Go</button>
+        </div>
+        <webview id="srcView" src="about:blank" style="width:100%;height:calc(100% - 36px)"></webview>
+      </div>
+      <div id="rightPanel" class="panel">
+        <div class="addressbar">
+          <input id="dstUrl" placeholder="http://localhost:8080" />
+          <button id="dstGo">🚀 Go</button>
+          <button id="refreshBtn">🔄 Refresh</button>
+        </div>
+        <webview id="dstView" src="about:blank" style="width:100%;height:calc(100% - 36px)"></webview>
+      </div>
+    </div>
+    <div id="bottom">
+    <div class="controls">
+      <label>Output folder:</label>
+      <input id="outPath" readonly />
+      <button id="chooseOut">📁 Choose</button>
+      <label>Port:</label>
+      <input id="port" type="number" value="8080" />
+      <button id="toggleServer">⚡ Start Server</button>
+      <button id="testServer">🧪 Test Server</button>
+      <button id="cloneBtn">👁️ Watch & Clone</button>
+      <div class="dropdown">
+        <button id="clearBtn" class="dropdown-main">🗑️ Clear All</button>
+        <button id="clearDropdown" class="dropdown-arrow">▼</button>
+        <div id="clearDropdownMenu" class="dropdown-menu" style="display: none;">
+          <button id="clearJsBtn" class="dropdown-item">📜 Clear JS</button>
+          <button id="clearCssBtn" class="dropdown-item">🎨 Clear CSS</button>
+          <button id="clearHtmlBtn" class="dropdown-item">📄 Clear HTML</button>
+          <button id="clearImagesBtn" class="dropdown-item">🖼️ Clear Images</button>
+        </div>
+      </div>
+      <button id="clearSettingsBtn">⚙️ Clear Settings</button>
+    </div>
+    <div id="progressContainer" style="display: none;">
+      <div id="progressHeader">
+        <div id="progressInfo">
+          <span id="progressText">Processing files...</span>
+          <span id="progressStats">0/0 files</span>
+        </div>
+        <button id="progressToggle" class="progress-toggle">−</button>
+      </div>
+      <div id="progressContent">
+        <div id="overallProgressBar">
+          <div id="overallProgressFill"></div>
+        </div>
+        <div id="currentFileInfo">
+          <span id="currentFileText">Ready to download...</span>
+        </div>
+        <div id="currentFileProgressBar">
+          <div id="currentFileProgressFill"></div>
+        </div>
+      </div>
+    </div>
+    <div id="logArea"></div>
+    </div>
+  </div>
+  <script src="split.min.js"></script>
+  <script type="module" src="../renderer/renderer.js"></script>
+</body>
+</html>
