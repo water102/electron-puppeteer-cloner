@@ -1,0 +1,263 @@
+/**
+ * Dark Mode Styles
+ * Additional styles for dark theme
+ */
+
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  /* Override light theme variables */
+  --bg-primary: #1f2937;
+  --bg-secondary: #111827;
+  --bg-tertiary: #374151;
+  --bg-panel: rgba(30, 41, 59, 0.7);
+  --bg-panel-border: rgba(255, 255, 255, 0.1);
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --text-muted: #9ca3af;
+  --border-color: #4b5563;
+  --accent-color: #667eea;
+  --accent-hover: #764ba2;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+[data-theme="dark"] body {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  background-image:
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+}
+
+[data-theme="dark"] .panel {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .addressbar {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .addressbar input {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .addressbar input:focus {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+
+[data-theme="dark"] .addressbar button {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .addressbar button:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-color);
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] select:focus {
+  border-color: var(--accent-color);
+}
+
+[data-theme="dark"] button {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] button:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent-color);
+}
+
+[data-theme="dark"] .controls {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] #logArea {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .modal-content {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .modal-header {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+}
+
+[data-theme="dark"] .stat-card {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .stat-label {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .breakdown-item {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .asset-list-container {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .asset-list-item {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .asset-list-item:hover {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .asset-item-url {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .asset-preview-code {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .asset-preview-info {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .context-menu {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .context-menu-item:hover {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .context-menu-divider {
+  background: var(--border-color);
+}
+
+[data-theme="dark"] .progress-bar {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .current-file-info {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .recent-assets-container {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .recent-asset-item {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .settings-section {
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .setting-item {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .setting-item:hover {
+  background: var(--bg-primary);
+}
+
+[data-theme="dark"] .asset-search-input,
+[data-theme="dark"] .asset-type-filter,
+[data-theme="dark"] .asset-status-filter,
+[data-theme="dark"] .asset-size-filter {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .asset-search-input:focus,
+[data-theme="dark"] .asset-type-filter:focus,
+[data-theme="dark"] .asset-status-filter:focus,
+[data-theme="dark"] .asset-size-filter:focus {
+  border-color: var(--accent-color);
+}
+
+/* Placeholder styles for dark mode */
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] input::-webkit-input-placeholder,
+[data-theme="dark"] input::-moz-placeholder,
+[data-theme="dark"] input:-ms-input-placeholder {
+  color: var(--text-muted);
+  opacity: 0.9;
+}
+
+[data-theme="dark"] input[readonly]::placeholder,
+[data-theme="dark"] input[readonly]::-webkit-input-placeholder,
+[data-theme="dark"] input[readonly]::-moz-placeholder,
+[data-theme="dark"] input[readonly]:-ms-input-placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+/* Dropdown Menu Dark Mode */
+[data-theme="dark"] .dropdown-main,
+[data-theme="dark"] .dropdown-arrow {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-main:hover,
+[data-theme="dark"] .dropdown-arrow:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent-color);
+}
+
+[data-theme="dark"] .dropdown-menu {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .dropdown-item {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item:hover {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .dropdown-item label {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .dropdown-item input[type="checkbox"] {
+  accent-color: var(--accent-color);
+}
+

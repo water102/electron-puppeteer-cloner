@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import mime from 'mime';
+import crypto from 'crypto';
 
 /**
  * File utility functions
@@ -79,15 +80,58 @@ class FileUtils {
     try {
       const parsed = new URL(url);
       let pathname = parsed.pathname;
-      
+
       if (pathname.endsWith('/')) {
         pathname += 'index';
       }
-      
+
       // Remove leading slash and replace slashes with underscores
       return pathname.replace(/^\//, '').replace(/\//g, '_');
     } catch {
       return url.replace(/[^a-zA-Z0-9._-]/g, '_');
+    }
+  }
+
+  /**
+   * Generate a local path mirroring the URL structure
+   * @param {string} url - The resource URL
+   * @returns {string} Relative local path (e.g., "example.com/foo/bar.jpg")
+   */
+  static generateLocalPath(url) {
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname;
+      let pathname = parsed.pathname;
+
+      if (pathname.endsWith('/')) {
+        pathname += 'index.html';
+      }
+
+      // Decode URI components to handle encoded characters
+      try {
+        pathname = decodeURIComponent(pathname);
+      } catch (e) {
+        // Ignore decoding errors
+      }
+
+      // Sanitize hostname
+      const safeHostname = hostname.replace(/[^a-z0-9.-]/gi, '_');
+
+      // Sanitize pathname
+      // split by / to sanitize each component
+      const parts = pathname.split('/').map(part => {
+        // Remove characters invalid in Windows filenames
+        return part.replace(/[<>:"/\\|?*]/g, '_');
+      });
+
+      const safePathname = parts.join('/');
+
+      // Remove leading slash if present
+      const finalPath = path.join(safeHostname, safePathname).split(path.sep).join('/');
+      return finalPath;
+    } catch (e) {
+      // Fallback for invalid URLs
+      return 'unknown/' + this.getSafeFilename(url);
     }
   }
 

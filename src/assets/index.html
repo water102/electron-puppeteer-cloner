@@ -1,20 +1,24 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: https: http:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' 'unsafe-inline' data: blob: https: http:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
   <title>Electron Web Cloner</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" id="theme-stylesheet" href="styles.css" />
 </head>
+
 <body>
   <div id="app">
     <div id="top">
       <div id="leftPanel" class="panel">
-        <div class="addressbar">
-          <input id="srcUrl" placeholder="Source URL" />
+        <div class="addressbar drag-zone" id="srcUrlDropZone">
+          <input id="srcUrl" placeholder="Source URL (or drag URL here)" />
           <button id="srcGo">🚀 Go</button>
         </div>
-        <webview id="srcView" src="about:blank" style="width:100%;height:calc(100% - 36px)"></webview>
+        <webview id="srcView" src="about:blank" style="width:100%;height:calc(100% - 48px)"></webview>
       </div>
       <div id="rightPanel" class="panel">
         <div class="addressbar">
@@ -22,55 +26,371 @@
           <button id="dstGo">🚀 Go</button>
           <button id="refreshBtn">🔄 Refresh</button>
         </div>
-        <webview id="dstView" src="about:blank" style="width:100%;height:calc(100% - 36px)"></webview>
+        <webview id="dstView" src="about:blank" style="width:100%;height:calc(100% - 48px)"></webview>
       </div>
     </div>
     <div id="bottom">
-    <div class="controls">
-      <label>Output folder:</label>
-      <input id="outPath" readonly />
-      <button id="chooseOut">📁 Choose</button>
-      <label>Port:</label>
-      <input id="port" type="number" value="8080" />
-      <button id="toggleServer">⚡ Start Server</button>
-      <button id="testServer">🧪 Test Server</button>
-      <button id="cloneBtn">👁️ Watch & Clone</button>
-      <div class="dropdown">
-        <button id="clearBtn" class="dropdown-main">🗑️ Clear All</button>
-        <button id="clearDropdown" class="dropdown-arrow">▼</button>
-        <div id="clearDropdownMenu" class="dropdown-menu" style="display: none;">
-          <button id="clearJsBtn" class="dropdown-item">📜 Clear JS</button>
-          <button id="clearCssBtn" class="dropdown-item">🎨 Clear CSS</button>
-          <button id="clearHtmlBtn" class="dropdown-item">📄 Clear HTML</button>
-          <button id="clearImagesBtn" class="dropdown-item">🖼️ Clear Images</button>
+      <div class="controls">
+        <div class="control-group drag-zone" id="outPathDropZone">
+          <label>Output:</label>
+          <input id="outPath" readonly placeholder="Select output folder (or drag folder here)..." />
+          <button id="chooseOut">📁 Choose</button>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="control-group">
+          <label>Server:</label>
+          <input id="port" type="number" value="8080" style="width: 70px;" />
+          <button id="toggleServer">⚡ Start</button>
+          <button id="testServer">🧪 Test</button>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="control-group">
+          <button id="cloneBtn">Clone</button>
+
+          <div class="dropdown">
+            <button id="clearBtn" class="dropdown-main">🗑️ Clear All</button>
+            <button id="clearDropdown" class="dropdown-arrow">▼</button>
+            <div id="clearDropdownMenu" class="dropdown-menu" style="display: none;">
+              <button id="clearJsBtn" class="dropdown-item">📜 Clear JS</button>
+              <button id="clearCssBtn" class="dropdown-item">🎨 Clear CSS</button>
+              <button id="clearHtmlBtn" class="dropdown-item">📄 Clear HTML</button>
+              <button id="clearImagesBtn" class="dropdown-item">🖼️ Clear Images</button>
+            </div>
+          </div>
+          <button id="clearSettingsBtn">⚙️ Clear Settings</button>
+          <button id="settingsBtn">⚙️ Settings</button>
+          <button id="assetsDashboardBtn">📊 Assets</button>
+          <button id="themeToggleBtn" title="Toggle Dark Mode">🌙</button>
+          <button id="devToolsBtn" title="Toggle Developer Tools">🔧 DevTools</button>
         </div>
       </div>
-      <button id="clearSettingsBtn">⚙️ Clear Settings</button>
-    </div>
-    <div id="progressContainer" style="display: none;">
-      <div id="progressHeader">
-        <div id="progressInfo">
-          <span id="progressText">Processing files...</span>
-          <span id="progressStats">0/0 files</span>
+
+      <div class="controls advanced-controls">
+        <div class="control-group">
+          <label>Device:</label>
+          <select id="deviceType">
+            <option value="desktop">Desktop</option>
+            <option value="mobile">Mobile (iPhone 12)</option>
+          </select>
         </div>
-        <button id="progressToggle" class="progress-toggle">−</button>
+
+        <div class="separator"></div>
+
+        <div class="control-group">
+          <div class="dropdown">
+            <button id="filterBtn" class="dropdown-main">Resource Filter ▼</button>
+            <div id="filterMenu" class="dropdown-menu" style="display: none; width: 200px;">
+              <label class="dropdown-item"><input type="checkbox" id="filterImages" checked> Images</label>
+              <label class="dropdown-item"><input type="checkbox" id="filterMedia" checked> Video/Audio</label>
+              <label class="dropdown-item"><input type="checkbox" id="filterCssJs" checked> CSS/JS</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="separator"></div>
+
+        <div class="control-group" style="display:flex; align-items:center; gap:8px;">
+          <label>Depth:</label>
+          <input id="crawlDepth" type="number" min="1" max="3" value="1" style="width: 50px;" />
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+            <input type="checkbox" id="sameDomain" checked> Same Domain
+          </label>
+        </div>
       </div>
-      <div id="progressContent">
-        <div id="overallProgressBar">
-          <div id="overallProgressFill"></div>
+
+      <div id="progressContainer" style="display: none;">
+        <div id="progressHeader">
+          <div id="progressInfo">
+            <span id="progressText">Processing files...</span>
+            <span id="progressStats">0/0 files</span>
+          </div>
+          <button id="progressToggle" class="progress-toggle">−</button>
         </div>
-        <div id="currentFileInfo">
-          <span id="currentFileText">Ready to download...</span>
-        </div>
-        <div id="currentFileProgressBar">
-          <div id="currentFileProgressFill"></div>
+        <div id="progressContent">
+          <div class="progress-main">
+            <div id="overallProgressBar" class="progress-bar">
+              <div id="overallProgressFill" class="progress-fill"></div>
+              <div id="overallProgressText" class="progress-text">0%</div>
+            </div>
+            <div class="progress-meta">
+              <span id="progressSpeed">Speed: --</span>
+              <span id="progressETA">ETA: --</span>
+              <span id="progressTimeElapsed">Time: 0s</span>
+            </div>
+          </div>
+          <div id="currentFileInfo" class="current-file-info">
+            <span id="currentFileText">Ready to download...</span>
+            <div id="currentFileProgressBar" class="progress-bar small">
+              <div id="currentFileProgressFill" class="progress-fill"></div>
+            </div>
+          </div>
+          <div id="recentAssetsList" class="recent-assets-list">
+            <div class="recent-assets-header">Recent Assets</div>
+            <div id="recentAssetsContainer" class="recent-assets-container"></div>
+          </div>
         </div>
       </div>
-    </div>
-    <div id="logArea"></div>
+
+      <div id="logArea"></div>
     </div>
   </div>
+
+  <!-- Asset Discovery Dashboard Modal -->
+  <div id="assetsDashboardModal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2>📊 Asset Discovery Dashboard</h2>
+        <button id="closeAssetsDashboard" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="assetStatistics" class="asset-statistics">
+          <div class="stat-card">
+            <div class="stat-label">Total Assets</div>
+            <div class="stat-value" id="statTotalAssets">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Downloaded</div>
+            <div class="stat-value" id="statDownloaded">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Missing</div>
+            <div class="stat-value stat-warning" id="statMissing">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Size</div>
+            <div class="stat-value" id="statTotalSize">0 MB</div>
+          </div>
+        </div>
+
+        <div class="asset-breakdown">
+          <h3>Asset Breakdown</h3>
+          <div class="breakdown-grid">
+            <div class="breakdown-item">
+              <span class="breakdown-icon">📄</span>
+              <span class="breakdown-label">HTML:</span>
+              <span class="breakdown-value" id="breakdownHtml">0</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-icon">🎨</span>
+              <span class="breakdown-label">CSS:</span>
+              <span class="breakdown-value" id="breakdownCss">0</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-icon">📜</span>
+              <span class="breakdown-label">JavaScript:</span>
+              <span class="breakdown-value" id="breakdownJs">0</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-icon">🖼️</span>
+              <span class="breakdown-label">Images:</span>
+              <span class="breakdown-value" id="breakdownImages">0</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-icon">🔤</span>
+              <span class="breakdown-label">Fonts:</span>
+              <span class="breakdown-value" id="breakdownFonts">0</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-icon">🎬</span>
+              <span class="breakdown-label">Media:</span>
+              <span class="breakdown-value" id="breakdownMedia">0</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-icon">📦</span>
+              <span class="breakdown-label">Workers:</span>
+              <span class="breakdown-value" id="breakdownWorkers">0</span>
+            </div>
+            <div class="breakdown-item">
+              <span class="breakdown-icon">🗺️</span>
+              <span class="breakdown-label">Source Maps:</span>
+              <span class="breakdown-value" id="breakdownSourceMaps">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="asset-actions">
+          <button id="refreshAssetsBtn" class="btn-secondary">🔄 Refresh</button>
+          <button id="exportAssetsBtn" class="btn-primary">📤 Export List</button>
+          <button id="scanMissingBtn" class="btn-warning">🔍 Scan Missing</button>
+          <button id="validateAssetsBtn" class="btn-primary">✅ Validate Assets</button>
+          <button id="dependencyGraphBtn" class="btn-secondary">🔗 Dependencies</button>
+        </div>
+
+        <div class="asset-list-section">
+          <div class="asset-list-header">
+            <h3>Asset List</h3>
+            <div class="asset-list-controls">
+              <input type="text" id="assetSearchInput" placeholder="🔍 Search assets..." class="asset-search-input" />
+              <select id="assetTypeFilter" class="asset-type-filter">
+                <option value="all">All Types</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="js">JavaScript</option>
+                <option value="image">Images</option>
+                <option value="font">Fonts</option>
+                <option value="media">Media</option>
+                <option value="worker">Workers</option>
+                <option value="source-map">Source Maps</option>
+              </select>
+              <select id="assetStatusFilter" class="asset-status-filter">
+                <option value="all">All Status</option>
+                <option value="downloaded">Downloaded</option>
+                <option value="missing">Missing</option>
+                <option value="pending">Pending</option>
+              </select>
+              <select id="assetSizeFilter" class="asset-size-filter">
+                <option value="all">All Sizes</option>
+                <option value="small">&lt; 100 KB</option>
+                <option value="medium">100 KB - 1 MB</option>
+                <option value="large">1 MB - 10 MB</option>
+                <option value="xlarge">&gt; 10 MB</option>
+              </select>
+            </div>
+          </div>
+          <div id="assetListContainer" class="asset-list-container">
+            <div class="asset-list-loading">Loading assets...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Panel Modal -->
+  <div id="settingsModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⚙️ Capture Settings</h2>
+        <button id="closeSettingsModal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h3>Capture Options</h3>
+          <div class="settings-grid">
+            <label class="setting-item">
+              <input type="checkbox" id="settingCaptureServiceWorkers" checked />
+              <span>Capture Service Workers</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingCaptureWebWorkers" checked />
+              <span>Capture Web Workers</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingExtractBlobUrls" checked />
+              <span>Extract Blob URLs</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingExtractDataUrls" checked />
+              <span>Extract Data URLs</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingDownloadSourceMaps" checked />
+              <span>Download Source Maps</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingCaptureIframes" checked />
+              <span>Capture Iframe Content</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingDownloadMetaFiles" checked />
+              <span>Download Meta Files</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingProcessCssImports" checked />
+              <span>Process CSS @import</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Lazy Loading</h3>
+          <div class="settings-grid">
+            <label class="setting-item">
+              <input type="checkbox" id="settingWaitForLazyImages" checked />
+              <span>Wait for lazy images</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingScrollToTrigger" checked />
+              <span>Scroll to trigger loading</span>
+            </label>
+            <div class="setting-item">
+              <label>Wait time (seconds):</label>
+              <input type="number" id="settingLazyWaitTime" min="1" max="30" value="5" style="width: 80px;" />
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>Advanced Options</h3>
+          <div class="settings-grid">
+            <label class="setting-item">
+              <input type="checkbox" id="settingIncludeCDN" />
+              <span>Include CDN assets</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingIncludeExternal" />
+              <span>Include external domains</span>
+            </label>
+            <label class="setting-item">
+              <input type="checkbox" id="settingDownloadDuplicates" />
+              <span>Download duplicates</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button id="saveSettingsBtn" class="btn-primary">💾 Save Settings</button>
+          <button id="resetSettingsBtn" class="btn-secondary">🔄 Reset to Default</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asset Preview Modal -->
+  <div id="assetPreviewModal" class="modal" style="display: none;">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2 id="assetPreviewTitle">📄 Asset Preview</h2>
+        <button id="closeAssetPreview" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="assetPreviewContent" class="asset-preview-content">
+          <div class="asset-preview-loading">Loading preview...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div id="contextMenu" class="context-menu" style="display: none;">
+    <div class="context-menu-item" onclick="handleContextMenuAction('preview')">
+      <span class="context-menu-icon">👁️</span>
+      <span>Preview</span>
+    </div>
+    <div class="context-menu-item" onclick="handleContextMenuAction('copy')">
+      <span class="context-menu-icon">📋</span>
+      <span>Copy URL</span>
+    </div>
+    <div class="context-menu-item" onclick="handleContextMenuAction('open')">
+      <span class="context-menu-icon">🔗</span>
+      <span>Open in Browser</span>
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="handleContextMenuAction('download')">
+      <span class="context-menu-icon">⬇️</span>
+      <span>Download</span>
+    </div>
+    <div class="context-menu-item" onclick="handleContextMenuAction('validate')">
+      <span class="context-menu-icon">✅</span>
+      <span>Validate</span>
+    </div>
+  </div>
+
   <script src="split.min.js"></script>
   <script type="module" src="../renderer/renderer.js"></script>
 </body>
+
 </html>

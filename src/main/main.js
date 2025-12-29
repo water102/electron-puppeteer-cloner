@@ -15,6 +15,15 @@ const __dirname = path.dirname(__filename);
 const logger = new Logger('[Main]');
 let mainWindow;
 
+// Asset capture storage
+const capturedAssets = {
+  serviceWorkers: [],
+  webWorkers: [],
+  blobUrls: [],
+  dataUrls: [],
+  moduleImports: []
+};
+
 /**
  * Create the main application window
  */
@@ -35,10 +44,12 @@ function createWindow() {
       allowRunningInsecureContent: true,
       experimentalFeatures: false,
       enableRemoteModule: false,
-      webSecurity: false
+      webSecurity: false,
+      devTools: true // Enable DevTools
     },
     icon: path.join(__dirname, '../assets/icon.png'), // Add icon if available
     titleBarStyle: 'default',
+    autoHideMenuBar: true, // Hide menu bar
     show: false // Don't show until ready
   });
   
@@ -327,4 +338,75 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled rejection at: ' + promise + ', reason: ' + reason);
+});
+
+/**
+ * Handle asset capture from preload scripts
+ */
+ipcMain.on('asset-captured', (event, { type, data }) => {
+  try {
+    switch (type) {
+      case 'service-worker':
+        capturedAssets.serviceWorkers.push(data);
+        logger.debug(`Service Worker captured: ${data.scriptURL}`);
+        break;
+      case 'web-worker':
+        capturedAssets.webWorkers.push(data);
+        logger.debug(`Web Worker captured: ${data.scriptURL}`);
+        break;
+      case 'blob-url':
+        capturedAssets.blobUrls.push(data);
+        logger.debug(`Blob URL captured: ${data.url}`);
+        break;
+      case 'data-url':
+        capturedAssets.dataUrls.push(data);
+        logger.debug(`Data URL captured: ${data.url}`);
+        break;
+      case 'dynamic-import':
+      case 'module-import':
+        capturedAssets.moduleImports.push(data);
+        logger.debug(`${type} captured: ${data.url}`);
+        break;
+      default:
+        logger.debug(`Unknown asset type captured: ${type}`);
+    }
+  } catch (error) {
+    logger.warn(`Failed to handle asset capture: ${error.message}`);
+  }
+});
+
+/**
+ * Get captured assets
+ */
+ipcMain.handle('get-captured-assets', async () => {
+  return capturedAssets;
+});
+
+/**
+ * Clear captured assets
+ */
+ipcMain.handle('clear-captured-assets', async () => {
+  capturedAssets.serviceWorkers = [];
+  capturedAssets.webWorkers = [];
+  capturedAssets.blobUrls = [];
+  capturedAssets.dataUrls = [];
+  capturedAssets.moduleImports = [];
+  logger.info('Cleared all captured assets');
+  return { success: true };
+});
+
+/**
+ * Toggle DevTools
+ */
+ipcMain.handle('toggle-devtools', async () => {
+  if (mainWindow) {
+    if (mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.closeDevTools();
+      return { opened: false };
+    } else {
+      mainWindow.webContents.openDevTools();
+      return { opened: true };
+    }
+  }
+  return { opened: false };
 });

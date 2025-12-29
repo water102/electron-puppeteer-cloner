@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import mime from 'mime';
+import FileUtils from './file-utils.js';
 
 /**
  * Static file analyzer for extracting and downloading static resources
@@ -158,7 +159,7 @@ class StaticAnalyzer {
     try {
       const urlObj = new URL(url);
       const hostname = urlObj.hostname.toLowerCase();
-      
+
       // Skip CDN and external domains
       const cdnDomains = [
         'cdn.', 'cdnjs.', 'unpkg.', 'jsdelivr.', 'googleapis.', 'gstatic.',
@@ -169,7 +170,7 @@ class StaticAnalyzer {
         'amazonaws.', 'azure.', 'firebase.', 'heroku.', 'netlify.',
         'vercel.', 'surge.', 'github.io', 'gitlab.io', 'bitbucket.io'
       ];
-      
+
       if (cdnDomains.some(domain => hostname.includes(domain))) {
         return false;
       }
@@ -183,7 +184,7 @@ class StaticAnalyzer {
       // Check file extension
       const ext = path.extname(urlObj.pathname).toLowerCase();
       const validExtensions = ['.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot'];
-      
+
       return validExtensions.includes(ext);
     } catch {
       return false;
@@ -204,9 +205,8 @@ class StaticAnalyzer {
       }
 
       const buffer = await response.arrayBuffer();
-      const urlObj = new URL(url);
-      const filePath = urlObj.pathname.replace(/^\//, '').replace(/\//g, '_');
-      const localPath = path.join(outputDir, 'assets', filePath);
+      const localRelativePath = FileUtils.generateLocalPath(url);
+      const localPath = path.join(outputDir, 'assets', localRelativePath);
 
       await fs.ensureDir(path.dirname(localPath));
       await fs.writeFile(localPath, Buffer.from(buffer));
